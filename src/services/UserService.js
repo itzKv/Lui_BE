@@ -4,13 +4,48 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/user");
 require("dotenv").config();
 
+const crypto = require("crypto");
+// setup nodemailer
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+    }
+});
+
 class UserService {
     static async register(data) {
         const existingUser = await UserRepository.findByEmail(data.email);
         if (existingUser) throw new Error("Email already registered!");
 
+
+
         data.password = await bcrypt.hash(data.password, 10); // Hash password
-        return await UserRepository.createUser(data);
+        data.verificationToken = crypto.randomBytes(32).toString('hex');
+
+        const user = await UserRepository.createUser(data);
+
+        // Send email verification
+        const verificationUrl =  `${process.env.BASE_URL}/api/auth/verify-email?token=${data.verificationToken}`;
+        await transporter.sendMail({
+            from: process.env.SMTP_USER,
+            to: user.email,
+            subject: "Email Verification",
+            html: `<p>Click <a href="${verificationUrl}">here</a> to verify your email.</p>`
+        });
+
+        return user;
+    }
+
+    static async verifyEmail(token) {
+        const user = User.findOne({ where: { verificationToken: token }});
+        if (!user) throw new Error("Invalid or expired verification token");
+
+        user.verificationToken = null;
+        user.verified = true;
+        await user.save();
+        return { message: "User successfully verified! "};
     }
 
     static async login(email, password) {

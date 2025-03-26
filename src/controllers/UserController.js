@@ -10,6 +10,16 @@ class UserController {
         }
     }
 
+    static async verifiyEmail (req, res) {
+        try {
+            const { token } = req.query;
+            const response = await UserService.verifyEmail(token);
+            res.status(200).json(response);
+        } catch (error) {
+            res.status(400).json({ message: error.message });
+        }
+    }
+
     static async login (req, res) {
         try {
             const { email, password } = req.body;
